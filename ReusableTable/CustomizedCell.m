@@ -10,15 +10,16 @@
 #import "CustomizedCell.h"
 @interface CustomizedCell()
 @property (weak, nonatomic) IBOutlet UIView *realContentView;
-@property (weak, nonatomic) IBOutlet UIButton *editButton;
-@property (weak, nonatomic) IBOutlet UIButton *eatButton;
+@property (weak, nonatomic) IBOutlet UIView *editingAreaView;
 
 @property (nonatomic, strong) UIPanGestureRecognizer *panRecognizer;
-@property (nonatomic, assign) CGPoint panStartPoint;
-@property (nonatomic, assign) CGFloat startingRightLayoutConstraintConstant;
-
+@property (nonatomic) CGPoint panStartPoint;
+@property (nonatomic) CGFloat startingRightLayoutConstraintConstant;
+@property (nonatomic) CGFloat originalFixedConstant;
 @property (nonatomic, weak) IBOutlet NSLayoutConstraint *contentViewRightConstraint;
 @property (nonatomic, weak) IBOutlet NSLayoutConstraint *contentViewLeftConstraint;
+@property (weak, nonatomic) IBOutlet NSLayoutConstraint *realContentLeftConstraint;
+@property (weak, nonatomic) IBOutlet NSLayoutConstraint *realContentRightConstraint;
 
 
 @end
@@ -26,18 +27,34 @@
 @implementation CustomizedCell
 static CGFloat const kBounceValue = 20.0f;
 
-- (IBAction)editTouched:(id)sender {
-}
-- (IBAction)eatTouched:(id)sender {
-}
-
 - (void)awakeFromNib {
     self.panRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panCell:)];
     self.panRecognizer.delegate = self;
+
+    
     [self.realContentView addGestureRecognizer:self.panRecognizer];
     // Initialization code
 }
 
+-(void)drawRect:(CGRect)rect
+{
+    //If you want to use the view you customized in your delegate,these statements will adjust the original editingarea view's frame to fit your view
+    //Then update the constraints , but unfortunately, there's a little missing part in your customized view when put into the editingarea.
+    if([self.editDelegate respondsToSelector:@selector(editingAreaForCell:)])
+    {
+        UIView* customizedView = [self.editDelegate editingAreaForCell:self];
+        float deltaOriginX = self.editingAreaView.frame.size.width - customizedView.frame.size.width;
+        [self.editingAreaView setFrame:CGRectMake(self.editingAreaView.frame.origin.x, 0, customizedView.frame.size.width, customizedView.frame.size.height)];
+        [self.editingAreaView addSubview: customizedView];
+        
+        self.realContentLeftConstraint.constant += deltaOriginX;
+    }
+    
+    //In xib files ,when constraints are added to the contents, the minumum constant is always -8,
+    //not zero, I dont know why, perhaps you can fix it
+    //ToDo: to fix -8 =>0
+    self.originalFixedConstant = self.contentViewLeftConstraint.constant;
+}
 
 - (void)panCell:(UIPanGestureRecognizer *)recognizer {
     switch (recognizer.state) {
@@ -55,23 +72,30 @@ static CGFloat const kBounceValue = 20.0f;
             if (currentPoint.x < self.panStartPoint.x) {
                 panningLeft = YES;
             }
-            if (self.startingRightLayoutConstraintConstant == -8) {
+            if (self.startingRightLayoutConstraintConstant == self.originalFixedConstant) {
                 
-                //No editing status -> editing area hidden now
+                //open editing area.
                 if (!panningLeft) {
-                    CGFloat constant = MAX(-deltaX, -8);
-                    if (constant == -8) {
+                    CGFloat constant = MAX(-deltaX, self.originalFixedConstant);
+                    if (constant == self.originalFixedConstant) {
                         [self resetConstraintToZeroWithAnimated:YES notifyDelegateDidClose:NO];
                     } else {
                         self.contentViewRightConstraint.constant = constant;
                     }
                 } else {
-                    CGFloat constant = MIN(-deltaX, [self editAreaWidth]);
-                    if (constant == [self editAreaWidth]) {
-                        [self setConstraintsToShowEditAreaWithAnimated:YES notifyDelegateDidOpen:NO];
-                    } else {
-                        self.contentViewRightConstraint.constant = constant;
-                    }
+                    
+                    //You can pan right anyway then constraint will be set to zero at the end of the gesture.
+                    //It's a better experience for users to pan left/right.
+                    self.contentViewRightConstraint.constant = self.startingRightLayoutConstraintConstant - deltaX;
+                    self.contentViewLeftConstraint.constant = -self.contentViewRightConstraint.constant;
+                    
+                    //Comment area is from the references but deleted due to the experience.
+//                    CGFloat constant = MIN(-deltaX, [self editAreaWidth]);
+//                    if (constant == [self editAreaWidth]) {
+//                        [self setConstraintsToShowEditAreaWithAnimated:YES notifyDelegateDidOpen:NO];
+//                    } else {
+//                        self.contentViewRightConstraint.constant = constant;
+//                    }
                 }
             }
             else
@@ -80,26 +104,41 @@ static CGFloat const kBounceValue = 20.0f;
                 CGFloat adjustment = self.startingRightLayoutConstraintConstant - deltaX;
                 //1
                 if (!panningLeft) {
-                    CGFloat constant = MAX(adjustment, -8);
-                    //2
-                    if (constant == -8) {
-                        //3
+                    if(adjustment == -self.originalFixedConstant)
+                    {
                         [self resetConstraintToZeroWithAnimated:YES notifyDelegateDidClose:NO];
-                    } else {
-                        //4
-                        self.contentViewRightConstraint.constant = constant;
                     }
+                    else
+                    {
+                        self.contentViewRightConstraint.constant = adjustment;
+                    }
+                    //Now i choose to close the editing area once you pan right.
+                    
+//                    CGFloat constant = MAX(adjustment, -8);
+//                    //2
+//                    if (constant == -8) {
+//                        //3
+//                        [self resetConstraintToZeroWithAnimated:YES notifyDelegateDidClose:NO];
+//                    } else {
+//                        //4
+//                        self.contentViewRightConstraint.constant = constant;
+//                    }
                 } else {
-                    CGFloat constant = MIN(adjustment, [self editAreaWidth]);
+//                    CGFloat constant = MIN(adjustment, [self editAreaWidth]);
+//                    //6
+//                    if (constant == [self editAreaWidth]) {
+//                        //7
+//                        [self setConstraintsToShowAllButtons:YES notifyDelegateDidOpen:NO];
+//                    } else {
+//                        //8
+//                        self.contentViewRightConstraint.constant = constant;
+//                    }
+                    
                     //5
-                    if (constant == [self editAreaWidth]) {
-                        //6
-                        [self setConstraintsToShowEditAreaWithAnimated:YES notifyDelegateDidOpen:NO];
-                    } else { 
-                        //7
-                        self.contentViewRightConstraint.constant = constant;
-                    }
+                    self.contentViewRightConstraint.constant = adjustment;
+//                    [self setConstraintsToShowEditAreaWithAnimated:YES notifyDelegateDidOpen:NO];
                 }
+                
                 self.contentViewLeftConstraint.constant = -self.contentViewRightConstraint.constant;
             }
             
@@ -108,13 +147,13 @@ static CGFloat const kBounceValue = 20.0f;
 
         case UIGestureRecognizerStateEnded:
         {
-            if (self.startingRightLayoutConstraintConstant == -8) {
+            if (self.startingRightLayoutConstraintConstant == self.originalFixedConstant) {
                 //1
                 
-                //Cell was opening
-                CGFloat halfOfButtonOne = CGRectGetWidth(self.editButton.frame) / 2;
+                //Cell was opening-> you can fix the halfEditingWidth to meet your experience
+                CGFloat halfEditingWidth = CGRectGetWidth(self.editingAreaView.frame) / 2;
                 //2
-                if (self.contentViewRightConstraint.constant >= halfOfButtonOne) {
+                if (self.contentViewRightConstraint.constant >= halfEditingWidth) {
                     //3
                     
                     //Open all the way
@@ -127,9 +166,9 @@ static CGFloat const kBounceValue = 20.0f;
             } else {
                 
                 //Cell was closing
-                CGFloat buttonOnePlusHalfOfButton2 = CGRectGetWidth(self.editButton.frame) + (CGRectGetWidth(self.eatButton.frame) / 2);
+                CGFloat editAreaWith = CGRectGetWidth(self.editingAreaView.frame)+self.originalFixedConstant*2;
                 //4
-                if (self.contentViewRightConstraint.constant >= buttonOnePlusHalfOfButton2) {
+                if (self.contentViewRightConstraint.constant >= editAreaWith) {
                     //5
                     
                     //Re-open all the way
@@ -144,7 +183,7 @@ static CGFloat const kBounceValue = 20.0f;
         }
         case UIGestureRecognizerStateCancelled:
         {
-            if (self.startingRightLayoutConstraintConstant == -8) {
+            if (self.startingRightLayoutConstraintConstant == self.originalFixedConstant) {
                 
                 //Cell was closed - reset everything to 0
                 [self resetConstraintToZeroWithAnimated:YES notifyDelegateDidClose:YES];
@@ -183,13 +222,13 @@ static CGFloat const kBounceValue = 20.0f;
 }
 
 - (CGFloat)editAreaWidth {
-    return CGRectGetWidth(self.frame) - CGRectGetMinX(self.editButton.frame);
+    return CGRectGetWidth(self.frame) - CGRectGetMinX(self.editingAreaView.frame);
 }
 
 - (void)resetConstraintToZeroWithAnimated:(BOOL)animated notifyDelegateDidClose:(BOOL)endEditing
 {
-    if (self.startingRightLayoutConstraintConstant == -8 &&
-        self.contentViewRightConstraint.constant == -8) {
+    if (self.startingRightLayoutConstraintConstant == self.originalFixedConstant &&
+        self.contentViewRightConstraint.constant == self.originalFixedConstant) {
         
         //Already all the way closed, no bounce necessary
         return;
@@ -198,9 +237,25 @@ static CGFloat const kBounceValue = 20.0f;
     self.contentViewRightConstraint.constant = -kBounceValue;
     self.contentViewLeftConstraint.constant = kBounceValue;
     
+    if(endEditing)
+    {
+        if([self.editDelegate respondsToSelector:@selector(willEndEditCell:)])
+        {
+            [self.editDelegate willEndEditCell:self];
+        }
+    }
+    
     [self updateConstraintsIfNeeded:animated completion:^(BOOL finished) {
-        self.contentViewRightConstraint.constant = -8;
-        self.contentViewLeftConstraint.constant = -8;
+        self.contentViewRightConstraint.constant = self.originalFixedConstant;
+        self.contentViewLeftConstraint.constant = self.originalFixedConstant;
+        
+        if(endEditing)
+        {
+            if([self.editDelegate respondsToSelector:@selector(didEndEditCell:)])
+            {
+                [self.editDelegate didEndEditCell:self];
+            }
+        }
         
         [self updateConstraintsIfNeeded:animated completion:^(BOOL finished) {
             self.startingRightLayoutConstraintConstant = self.contentViewRightConstraint.constant;
@@ -220,18 +275,38 @@ static CGFloat const kBounceValue = 20.0f;
     self.contentViewLeftConstraint.constant = -[self editAreaWidth] - kBounceValue;
     self.contentViewRightConstraint.constant = [self editAreaWidth] + kBounceValue;
     
+    if(notifyDelegate)
+    {
+        if([self.editDelegate respondsToSelector:@selector(willBeginEditCell:)])
+        {
+            [self.editDelegate willBeginEditCell:self];
+        }
+    }
+    
     [self updateConstraintsIfNeeded:animated completion:^(BOOL finished) {
         
         //3
-        self.contentViewLeftConstraint.constant = -[self editAreaWidth]-8;
-        self.contentViewRightConstraint.constant = [self editAreaWidth]-16;
+        self.contentViewLeftConstraint.constant = -[self editAreaWidth]+self.originalFixedConstant;
+        self.contentViewRightConstraint.constant = [self editAreaWidth]+self.originalFixedConstant*2;
         
         [self updateConstraintsIfNeeded:animated completion:^(BOOL finished) {
             
+            if(notifyDelegate)
+            {
+                if([self.editDelegate respondsToSelector:@selector(didBeginEditCell:)])
+                {
+                    [self.editDelegate didBeginEditCell:self];
+                }
+            }
             //4
             self.startingRightLayoutConstraintConstant = self.contentViewRightConstraint.constant;
         }];
     }];
+}
+
+-(void)swapToEdit
+{
+    [self setConstraintsToShowEditAreaWithAnimated:YES notifyDelegateDidOpen:YES];
 }
 
 - (void)setSelected:(BOOL)selected animated:(BOOL)animated {

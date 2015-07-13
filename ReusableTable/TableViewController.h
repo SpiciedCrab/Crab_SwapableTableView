@@ -7,8 +7,8 @@
 //
 
 #import <UIKit/UIKit.h>
-
-@interface TableViewController : UITableViewController
+#import "CustomizedCell.h"
+@interface TableViewController : UITableViewController<EditableCellDelegate>
 
 @property (nonatomic,strong) NSMutableArray* finalArray;
 

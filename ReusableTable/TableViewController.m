@@ -18,7 +18,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    [self.view setBackgroundColor:[UIColor clearColor]];
+//    [self.view setBackgroundColor:[UIColor clearColor]];
     // Uncomment the following line to preserve selection between presentations.
     // self.clearsSelectionOnViewWillAppear = NO;
     
@@ -46,13 +46,9 @@
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath;
 {
     CustomizedCell* cell = [tableView dequeueReusableCellWithIdentifier:@"tableCell"];
-//    if(!cell)
-//    {
-//        cell = [[CustomizedCell alloc]initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"tableCell"];
-//    
-//    }
-    
-    [cell.titleText setText:self.finalArray[indexPath.row]];
+    cell.editDelegate = self;
+//    [cell swapToEdit];
+
     return cell;
     
 }
@@ -105,6 +101,40 @@
     return YES;
 }
 */
+
+#pragma Editing Delegate methods
+-(void)willBeginEditCell:(UITableViewCell *)cell
+{
+    NSLog(@"willbeginEdit");
+}
+
+-(void)didBeginEditCell:(UITableViewCell *)cell
+{
+    NSLog(@"didbeginEdit");
+}
+
+-(void)willEndEditCell:(UITableViewCell *)cell
+{
+    NSLog(@"willendEdit");
+}
+
+-(void)didEndEditCell:(UITableViewCell *)cell
+{
+    NSLog(@"didendEdit");
+}
+
+-(UIView*)editingAreaForCell:(UITableViewCell *)cell
+{
+    UIView* view = [[UIView alloc]initWithFrame:CGRectMake(0, 0, 100, 44)];
+    [view setBackgroundColor:[UIColor redColor]];
+    UILabel* label = [[UILabel alloc]initWithFrame:CGRectMake(0, 0, 100, 44)];
+    [label setBackgroundColor:[UIColor grayColor]];
+    [label setTextColor:[UIColor whiteColor]];
+    [label setTextAlignment:NSTextAlignmentCenter];
+    [label setText:@" aaa"];
+    [view addSubview:label];
+    return view;
+}
 
 /*
 #pragma mark - Navigation
